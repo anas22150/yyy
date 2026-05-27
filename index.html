@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>🎭 Who I Am - لعبة التخمين</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: linear-gradient(145deg, #1a2a3a, #0a121f);
+            font-family: 'Segoe UI', 'Cairo', Tahoma, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+        .game-container {
+            max-width: 1000px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
+            border-radius: 60px;
+            padding: 20px;
+            border: 1px solid #ffcc88;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.5);
+        }
+        h1 {
+            text-align: center;
+            color: #ffdd99;
+            font-size: 1.6rem;
+        }
+        .input-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        input, button {
+            padding: 10px 18px;
+            border-radius: 60px;
+            border: none;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+        input {
+            background: #2c3e2f;
+            color: #ffefb9;
+            flex: 1;
+            min-width: 150px;
+        }
+        button {
+            background: #e67e22;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        button:active {
+            transform: scale(0.97);
+        }
+        .players-list {
+            background: #1e2a1eaa;
+            border-radius: 50px;
+            padding: 12px;
+            margin: 15px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+        }
+        .player-tag {
+            background: #0a1522;
+            padding: 5px 12px;
+            border-radius: 40px;
+            color: #ffdd99;
+            font-weight: bold;
+        }
+        .player-tag.current-turn {
+            background: #e67e22;
+            color: #1a2a1a;
+            box-shadow: 0 0 8px #ffaa55;
+        }
+        .card-area {
+            background: #00000066;
+            border-radius: 40px;
+            padding: 20px;
+            text-align: center;
+            margin: 15px 0;
+        }
+        .card-back {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        .your-card {
+            background: #2c5f2d;
+            padding: 10px;
+            border-radius: 60px;
+            font-weight: bold;
+        }
+        .question-area {
+            background: #0a1522aa;
+            border-radius: 50px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .answers {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin: 12px 0;
+        }
+        .answer-btn {
+            background: #2a6b9e;
+            padding: 8px 20px;
+        }
+        .guess-input {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .chat-messages {
+            background: #00000055;
+            border-radius: 40px;
+            padding: 10px;
+            height: 180px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            margin-top: 15px;
+        }
+        .status {
+            text-align: center;
+            color: #88ffaa;
+            margin: 10px 0;
+            font-size: 0.8rem;
+        }
+        .room-info {
+            background: #00000055;
+            border-radius: 40px;
+            padding: 8px 15px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        @media (max-width: 600px) {
+            .input-group { flex-direction: column; }
+            button { padding: 8px 12px; }
+            .room-info { flex-direction: column; }
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+<div class="game-container" id="app">
+    <h1>🎭 Who I Am - خمن هويتك</h1>
+    <div id="loginView">
+        <div class="input-group">
+            <input type="text" id="playerNameInput" placeholder="اسمك">
+            <input type="text" id="roomCodeInput" placeholder="رمز الغرفة (اتركه لإنشاء جديدة)">
+            <button id="joinBtn">🚪 دخول / إنشاء</button>
+        </div>
+        <div class="status" id="loginStatus">✨ أدخل اسمك ورمز الغرفة</div>
+    </div>
+    <div id="gameView" style="display:none;">
+        <div class="room-info">
+            <span>🏷️ رمز الغرفة: <strong id="roomCodeDisplay">---</strong></span>
+            <button id="copyRoomCodeBtn" style="background:#2c5f2d; padding:4px 12px;">📋 نسخ</button>
+        </div>
+        <div class="players-list" id="playersList"></div>
+        <div class="card-area">
+            <div class="card-back">❓ بطاقتك ❓</div>
+            <div id="myCardDisplay" class="your-card">🔍 لم تظهر بعد</div>
+        </div>
+        <div id="gameControls" style="display:none;">
+            <div class="question-area">
+                <div class="input-group">
+                    <input type="text" id="questionInput" placeholder="اكتب سؤالك (مثال: هل أنا حيوان؟)">
+                    <button id="askBtn">❔ اسأل</button>
+                </div>
+                <div class="answers">
+                    <button class="answer-btn" data-ans="yes">✅ نعم</button>
+                    <button class="answer-btn" data-ans="no">❌ لا</button>
+                    <button class="answer-btn" data-ans="probably">🟡 غالباً</button>
+                </div>
+                <div class="guess-input">
+                    <input type="text" id="guessInput" placeholder="أدخل التخمين (اسم الشخصية/الشيء)">
+                    <button id="guessBtn">🔮 خمّن</button>
+                </div>
+            </div>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="status" id="gameStatus"></div>
+        <button id="startGameBtn" style="display:none;">🚀 بدء اللعبة</button>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    let currentRoom = null;
+    let myName = "";
+    let myCard = null;
+    let players = [];
+    let currentTurnId = null;
+    let lastQuestioner = null;
+
+    // عناصر DOM
+    const loginView = document.getElementById('loginView');
+    const gameView = document.getElementById('gameView');
+    const playerNameInput = document.getElementById('playerNameInput');
+    const roomCodeInput = document.getElementById('roomCodeInput');
+    const joinBtn = document.getElementById('joinBtn');
+    const loginStatus = document.getElementById('loginStatus');
+    const playersListDiv = document.getElementById('playersList');
+    const myCardDisplay = document.getElementById('myCardDisplay');
+    const gameControls = document.getElementById('gameControls');
+    const questionInput = document.getElementById('questionInput');
+    const askBtn = document.getElementById('askBtn');
+    const guessInput = document.getElementById('guessInput');
+    const guessBtn = document.getElementById('guessBtn');
+    const chatMessages = document.getElementById('chatMessages');
+    const gameStatus = document.getElementById('gameStatus');
+    const startGameBtn = document.getElementById('startGameBtn');
+    const answerBtns = document.querySelectorAll('.answer-btn');
+    const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+    const copyRoomCodeBtn = document.getElementById('copyRoomCodeBtn');
+
+    function addMessage(text, type = 'info') {
+        const div = document.createElement('div');
+        div.innerText = text;
+        div.style.marginBottom = '6px';
+        div.style.borderBottom = '1px solid #aaa';
+        div.style.padding = '4px';
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (chatMessages.children.length > 40) chatMessages.removeChild(chatMessages.children[0]);
+    }
+
+    function updatePlayersUI() {
+        playersListDiv.innerHTML = '';
+        players.forEach(p => {
+            const span = document.createElement('span');
+            span.className = 'player-tag';
+            if (currentTurnId === p.id) span.classList.add('current-turn');
+            span.innerText = `${p.name} (${p.score || 0})`;
+            playersListDiv.appendChild(span);
+        });
+    }
+
+    function updateGameStatus() {
+        if (currentTurnId === socket.id) {
+            gameStatus.innerHTML = '🎤 دورك الآن! يمكنك طرح سؤال أو التخمين.';
+            gameControls.style.display = 'block';
+        } else {
+            gameStatus.innerHTML = `⏳ دور اللاعب ${players.find(p => p.id === currentTurnId)?.name || 'الآخر'}`;
+            gameControls.style.display = 'none';
+        }
+    }
+
+    // أحداث السوكيت
+    socket.on('roomJoined', (data) => {
+        currentRoom = data.roomId;
+        roomCodeDisplay.innerText = currentRoom;
+        players = data.players;
+        updatePlayersUI();
+        loginView.style.display = 'none';
+        gameView.style.display = 'block';
+        addMessage(`✅ انضممت إلى الغرفة ${currentRoom}`);
+        gameStatus.innerHTML = data.status === 'waiting' ? '⏳ انتظار بدء اللعبة...' : 'اللعبة بدأت';
+        if (data.status === 'waiting' && players[0]?.id === socket.id) {
+            startGameBtn.style.display = 'block';
+        } else {
+            startGameBtn.style.display = 'none';
+        }
+    });
+
+    socket.on('playersUpdate', (newPlayers) => {
+        players = newPlayers;
+        updatePlayersUI();
+    });
+
+    socket.on('yourCard', (card) => {
+        myCard = card;
+        myCardDisplay.innerHTML = `🎴 ${card.name} (${card.category})`;
+        addMessage(`🔒 بطاقتك هي: ${card.name} (لا تخبر أحداً)`);
+    });
+
+    socket.on('gameStarted', (data) => {
+        currentTurnId = data.currentTurn;
+        players = data.players;
+        updatePlayersUI();
+        updateGameStatus();
+        addMessage('🎲 بدأت اللعبة! حظاً سعيداً');
+    });
+
+    socket.on('turnChanged', (data) => {
+        currentTurnId = data.currentTurn;
+        updatePlayersUI();
+        updateGameStatus();
+    });
+
+    socket.on('newQuestion', (data) => {
+        const asker = players.find(p => p.id === data.from)?.name || 'لاعب';
+        addMessage(`❓ ${asker} يسأل: "${data.question}"`);
+        lastQuestioner = data.from;
+    });
+
+    socket.on('answerReceived', (data) => {
+        const answerer = players.find(p => p.id === data.from)?.name || 'لاعب';
+        let answerText = '';
+        if (data.answer === 'yes') answerText = '✅ نعم';
+        else if (data.answer === 'no') answerText = '❌ لا';
+        else answerText = '🟡 غالباً';
+        addMessage(`📢 ${answerer} أجاب: ${answerText} على سؤال ${players.find(p => p.id === data.to)?.name}`);
+    });
+
+    socket.on('correctGuess', (data) => {
+        addMessage(`🎉 ${data.playerName} خمّن بشكل صحيح! البطاقة هي: ${data.card} 🎉`);
+        gameStatus.innerHTML = `🏆 فاز ${data.playerName}! سيتم بدء جولة جديدة بعد قليل...`;
+    });
+
+    socket.on('wrongGuess', (data) => {
+        addMessage(`😵 ${players.find(p => p.id === data.playerId)?.name} خمّن "${data.guess}" بشكل خاطئ`);
+    });
+
+    socket.on('gameOver', (data) => {
+        addMessage(`🏁 انتهت الجولة! الفائز: ${data.winner} (البطاقة: ${data.card})`);
+    });
+
+    socket.on('gameReset', (data) => {
+        currentTurnId = data.currentTurn;
+        players = data.players;
+        updatePlayersUI();
+        updateGameStatus();
+        addMessage('🔄 جولة جديدة! تم توزيع بطاقات جديدة.');
+    });
+
+    socket.on('error', (msg) => {
+        addMessage(`⚠️ ${msg}`);
+        alert(msg);
+    });
+
+    // نسخ رمز الغرفة
+    copyRoomCodeBtn.addEventListener('click', () => {
+        const code = roomCodeDisplay.innerText;
+        if (code && code !== '---') {
+            navigator.clipboard.writeText(code);
+            alert('تم نسخ رمز الغرفة: ' + code);
+        }
+    });
+
+    // الأزرار
+    joinBtn.onclick = () => {
+        let name = playerNameInput.value.trim();
+        if (!name) name = 'زائر' + Math.floor(Math.random()*1000);
+        myName = name;
+        let roomCode = roomCodeInput.value.trim();
+        if (!roomCode) {
+            socket.emit('createRoom', { playerName: name, roomId: null });
+        } else {
+            socket.emit('joinRoom', { playerName: name, roomId: roomCode });
+        }
+    };
+
+    startGameBtn.onclick = () => {
+        socket.emit('startGame');
+        startGameBtn.style.display = 'none';
+    };
+
+    askBtn.onclick = () => {
+        const question = questionInput.value.trim();
+        if (!question) return;
+        socket.emit('askQuestion', { question });
+        questionInput.value = '';
+    };
+
+    answerBtns.forEach(btn => {
+        btn.onclick = () => {
+            const answer = btn.getAttribute('data-ans');
+            if (lastQuestioner) {
+                socket.emit('answerQuestion', { questionerId: lastQuestioner, answer });
+                lastQuestioner = null;
+            } else {
+                addMessage('⚠️ لا يوجد سؤال حالياً للإجابة عليه');
+            }
+        };
+    });
+
+    guessBtn.onclick = () => {
+        const guess = guessInput.value.trim();
+        if (!guess) return;
+        socket.emit('guess', { guess });
+        guessInput.value = '';
+    };
+</script>
+</body>
+</html>
